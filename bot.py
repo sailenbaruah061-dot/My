@@ -12,70 +12,115 @@ TOKEN = "8931408596:AAHpQAeA0iLWLQjrltfJ1RZYfrh5HNrSbGQ"
 # OWNER ID
 OWNER_ID = 8722144519
 
-# Access users
-ACCESS_USERS = {OWNER_ID}
+# SUDO USERS
+SUDO_USERS = {OWNER_ID}
 
-# Muted users
+# MUTED USERS
 MUTED_USERS = set()
 
 
-# /add user_id
-async def add_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# START MESSAGE
+START_TEXT = """
+🔥 GETO MUTE BOT 🔥
+
+━━━━━━━━━━━━━━━
+⚡ AVAILABLE COMMANDS ⚡
+━━━━━━━━━━━━━━━
+
+➤ .mute
+Reply to a user to auto delete all messages.
+
+➤ .unmute
+Reply to unmute the user.
+
+➤ /add
+Reply to give sudo access.
+
+➤ /del
+Reply to remove sudo access.
+
+━━━━━━━━━━━━━━━
+👑 OWNER & SUDO USERS
+MESSAGES NEVER DELETE
+━━━━━━━━━━━━━━━
+
+💀 TAKE SUDO FROM:
+JAKE GETO
+"""
+
+
+# /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(START_TEXT)
+
+
+# /add
+async def add_sudo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
-        return
-
-    try:
-        user_id = int(context.args[0])
-
-        ACCESS_USERS.add(user_id)
-
-        await update.message.reply_text(
-            f"✅ Added {user_id}"
-        )
-
-    except:
-        await update.message.reply_text(
-            "Usage:\n/add user_id"
-        )
-
-
-# /del user_id
-async def del_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        return
-
-    try:
-        user_id = int(context.args[0])
-
-        if user_id == OWNER_ID:
-            return
-
-        ACCESS_USERS.discard(user_id)
-
-        await update.message.reply_text(
-            f"❌ Removed {user_id}"
-        )
-
-    except:
-        await update.message.reply_text(
-            "Usage:\n/del user_id"
-        )
-
-
-# .mute
-async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if user_id not in ACCESS_USERS:
         return
 
     if not update.message.reply_to_message:
         await update.message.reply_text(
-            "Reply to a user's message with .mute"
+            "Reply to user with /add"
+        )
+        return
+
+    user_id = update.message.reply_to_message.from_user.id
+
+    SUDO_USERS.add(user_id)
+
+    await update.message.reply_text(
+        "✅ User added as sudo"
+    )
+
+
+# /del
+async def del_sudo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "Reply to user with /del"
+        )
+        return
+
+    user_id = update.message.reply_to_message.from_user.id
+
+    if user_id == OWNER_ID:
+        await update.message.reply_text(
+            "❌ Cannot remove owner"
+        )
+        return
+
+    SUDO_USERS.discard(user_id)
+
+    await update.message.reply_text(
+        "❌ User removed from sudo"
+    )
+
+
+# .mute
+async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sender_id = update.effective_user.id
+
+    if sender_id not in SUDO_USERS:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text(
+            "Reply to a user with .mute"
         )
         return
 
     target_id = update.message.reply_to_message.from_user.id
+
+    # protect owner/sudo
+    if target_id in SUDO_USERS:
+        await update.message.reply_text(
+            "❌ Cannot mute sudo/owner"
+        )
+        return
 
     MUTED_USERS.add(target_id)
 
@@ -85,15 +130,15 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # .unmute
-async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sender_id = update.effective_user.id
 
-    if user_id not in ACCESS_USERS:
+    if sender_id not in SUDO_USERS:
         return
 
     if not update.message.reply_to_message:
         await update.message.reply_text(
-            "Reply to a user's message with .unmute"
+            "Reply to a user with .unmute"
         )
         return
 
@@ -106,11 +151,16 @@ async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# Delete muted user's messages
+# DELETE MUTED USER MESSAGES
 async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = update.effective_user.id
 
+        # Never delete sudo/owner messages
+        if user_id in SUDO_USERS:
+            return
+
+        # Delete muted user messages
         if user_id in MUTED_USERS:
             await update.message.delete()
 
@@ -121,21 +171,26 @@ async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # Add access
+    # /start
     app.add_handler(
-        CommandHandler("add", add_user)
+        CommandHandler("start", start)
     )
 
-    # Remove access
+    # /add
     app.add_handler(
-        CommandHandler("del", del_user)
+        CommandHandler("add", add_sudo)
+    )
+
+    # /del
+    app.add_handler(
+        CommandHandler("del", del_sudo)
     )
 
     # .mute
     app.add_handler(
         MessageHandler(
             filters.TEXT & filters.Regex(r"^\.mute$"),
-            mute
+            mute_user
         )
     )
 
@@ -143,11 +198,11 @@ def main():
     app.add_handler(
         MessageHandler(
             filters.TEXT & filters.Regex(r"^\.unmute$"),
-            unmute
+            unmute_user
         )
     )
 
-    # Delete messages
+    # DELETE
     app.add_handler(
         MessageHandler(
             filters.ALL,
@@ -155,7 +210,8 @@ def main():
         )
     )
 
-    print("Bot Running...")
+    print("🔥 GETO BOT RUNNING 🔥")
+
     app.run_polling()
 
 
