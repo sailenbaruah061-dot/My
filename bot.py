@@ -166,7 +166,7 @@ def main():
     print("🔥 GETO BOT STARTING 🔥")
 
     app = Application.builder().token(TOKEN).build()
-app.run_polling()
+
     # COMMANDS
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_sudo))
